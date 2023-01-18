@@ -22,9 +22,7 @@ enum permutation_type {
     final_permutation = 5
 };
 
-char* decimal_to_binary(int n);
 int binary_to_decimal(char* binary, int len);
-void reverse_string(char* str, int len);
 char* string_to_hex(char *str);
 char* hex_to_binary(char *hex);
 char* binary_to_hex(char *binary, int bits);
@@ -34,9 +32,12 @@ char* xor_strings(char* str1, char* str2, int len);
 void permute_key(const char *key, char *permutation_key, enum permutation_type type);
 void generate_round_keys(char* key, char** round_keys);
 char* generate_random_initialization_vector();
-char* DES(char* plain_text, char** round_keys);
 char* padding(char* plain_text, int len);
 char** divide_plain_text_to_blocks(char* plain_text, int len);
+char* DES(char* plain_text, char** round_keys);
+char** CBC(char** blocks, unsigned long block_count, char* iv, char** round_keys, int mode);
+char** encrypt(char* plain_text, char* IV, char** round_keys);
+void decrypt(char** encrypted_block, int block_count, char* IV, char** round_keys);
 
 const int IP[] = {
         58, 50, 42, 34, 26, 18, 10, 2,

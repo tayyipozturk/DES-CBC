@@ -12,17 +12,6 @@ int binary_to_decimal(char* binary, int len) {
     return decimal;
 }
 
-void reverse_string(char* str, int len) {
-    int start = 0, end = len-1;
-    while (start < end) {
-        char temp = str[start];
-        str[start] = str[end];
-        str[end] = temp;
-        start++;
-        end--;
-    }
-}
-
 char* string_to_hex(char *str) {
     int len = strlen(str);
     int i;
@@ -216,7 +205,7 @@ void permute_key(const char *key, char *permutation_key, enum permutation_type t
             break;
         default:
             break;
-        }
+    }
 }
 
 void generate_round_keys(char* key, char** round_keys){
@@ -363,63 +352,66 @@ char** CBC(char** blocks, unsigned long block_count, char* iv, char** round_keys
     return cipher_block;
 }
 
+char** encrypt(char* plain_text, char* IV, char** round_keys) {
+    plain_text = padding(plain_text, strlen(plain_text));
+    printf("Plain text: %s\n", plain_text);
+    char* binary_plain_text = hex_to_binary(plain_text);
+    char** plain_blocks = divide_plain_text_to_blocks(binary_plain_text, strlen(plain_text) * 4);
+    unsigned long block_count = strlen(plain_text) * 4/ BLOCK_SIZE;
+
+    // Encryption in CBC mode
+    char** encrypted_block = CBC(plain_blocks, block_count, IV, round_keys, 0);
+    char* block = malloc(64 * sizeof(char));
+    printf("Cipher text: ");
+    for(int i=0; i<block_count; i++){
+        strncpy(block, encrypted_block[i], 64);
+        printf("%s", binary_to_hex(block, 64));
+    }
+    printf("\n");
+    return encrypted_block;
+}
+
+void decrypt(char** encrypted_block, int block_count, char* IV, char** round_keys){
+    char** reversed_round_keys = (char**)malloc(16 * sizeof(char*));
+    for (int i = 0; i < 16; i++) {
+        reversed_round_keys[i] = round_keys[15 - i];
+    }
+    char** decrypted_block = CBC(encrypted_block, block_count, IV, reversed_round_keys, 1);
+    printf("Decrypted text: ");
+    for(int i=0; i<block_count; i++){
+        char* block = malloc(64 * sizeof(char));
+        strncpy(block, decrypted_block[i], 64);
+        printf("%s", binary_to_hex(block, 64));
+    }
+    printf("\n");
+}
 
 int main() {
     struct timeval start, end;
-
-    char* my_name = "Muhammed Tayyip Ozturk";
-    char* name_as_plain_text = string_to_hex(my_name);  //4d7568616d6d656420546179796970204f7a7475726b
-    char* des_text = "436968616e676972";
-    char* binary_des_text = hex_to_binary(des_text);
-
-    char* plain_text = "436968616e6769722054657a63616e";
-    plain_text = padding(plain_text, strlen(plain_text));
-    char* binary_plain_text = hex_to_binary(plain_text);
-
-    char** blocks = divide_plain_text_to_blocks(binary_plain_text, strlen(plain_text) * 4);
-    unsigned long block_count = strlen(plain_text) * 4/ BLOCK_SIZE;
-    printf("Block count: %lu\n", block_count);
-
+    char* str = "Tayyip Ozturk";
     char key[] = "0123456789abcdef";
     char* binary_key = hex_to_binary(key);
+    char* plain_text = string_to_hex(str);
 
     char** round_keys = (char**)malloc(16 * sizeof(char*));
     generate_round_keys(binary_key, (char **) round_keys);
-
-    char** decryption_round_keys = (char**)malloc(16 * sizeof(char*));
-    for (int i = 0; i < 16; i++) {
-        decryption_round_keys[i] = round_keys[15 - i];
-    }
-
     char* IV = generate_random_initialization_vector();
-    char* init_vector = "fe5567e8d7695508";
-    char* binary_init_vector = hex_to_binary(init_vector);
-    IV = binary_init_vector;
 
-    char* cipherText = DES(binary_des_text, round_keys);
-    printf("Cipher text: %s\n", binary_to_hex(cipherText, 64));
 
+    printf("Starting encrypting the text\n");
     gettimeofday(&start, NULL);
-
-    printf("Plain text: %s\n", plain_text);
-
-    char** encrypted_block = CBC(blocks, block_count, IV, round_keys, 0);
-    int i;
-    for(i=0; i<block_count; i++){
-        char* block = malloc(64 * sizeof(char));
-        strncpy(block, encrypted_block[i], 64);
-        printf("Encrypted %d: %s\n",i , binary_to_hex(block, 64));
-    }
-
-    char** decrypted_block = CBC(encrypted_block, block_count, IV, decryption_round_keys, 1);
-    for(i=0; i<block_count; i++){
-        char* block = malloc(64 * sizeof(char));
-        strncpy(block, decrypted_block[i], 64);
-        printf("Decrypted %d: %s\n", i, binary_to_hex(block, 64));
-    }
-
+    char** encrypted_blocks = encrypt(plain_text, IV, round_keys);
     gettimeofday(&end, NULL);
-    printf("Generating keys took %lu microseconds\n", (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec);
+    printf("Encryption with DES in CBC mode took %lu microseconds\n", (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec);
 
+    printf("Starting decrypting the text\n");
+    gettimeofday(&start, NULL);
+    int block_count = strlen(plain_text) * 4/ BLOCK_SIZE;
+    if (strlen(plain_text) * 4 % BLOCK_SIZE != 0) {
+        block_count++;
+    }
+    decrypt(encrypted_blocks, block_count, IV, round_keys);
+    gettimeofday(&end, NULL);
+    printf("Decryption with DES in CBC mode took %lu microseconds\n", (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec);
     return 0;
 }
