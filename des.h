@@ -5,6 +5,12 @@
 #ifndef DES_H
 #define DES_H
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
+#include <math.h>
+
 #define BLOCK_SIZE 64
 
 enum permutation_type {
@@ -18,7 +24,7 @@ enum permutation_type {
 
 char* decimal_to_binary(int n);
 int binary_to_decimal(char* binary, int len);
-void reverse_string(char* str);
+void reverse_string(char* str, int len);
 char* string_to_hex(char *str);
 char* hex_to_binary(char *hex);
 char* binary_to_hex(char *binary, int bits);
@@ -29,7 +35,7 @@ void permute_key(const char *key, char *permutation_key, enum permutation_type t
 void generate_round_keys(char* key, char** round_keys);
 char* generate_random_initialization_vector();
 char* DES(char* plain_text, char** round_keys);
-void padding(char* binary_plain_text, int len);
+char* padding(char* plain_text, int len);
 char** divide_plain_text_to_blocks(char* plain_text, int len);
 
 const int IP[] = {
