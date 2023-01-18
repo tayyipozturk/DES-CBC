@@ -25,6 +25,10 @@ char* xor_strings(char* str1, char* str2);
 
 void permute_key(const char *key, char *permutation_key, enum permutation_type type);
 void generate_round_keys(char* key, char** round_keys);
+char* generate_random_initialization_vector();
+char* DES(char* plain_text, char** round_keys);
+void padding(char* binary_plain_text, int len);
+char** divide_plain_text_to_blocks(char* plain_text, int len);
 
 const int IP[] = {
         58, 50, 42, 34, 26, 18, 10, 2,

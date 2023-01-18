@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 #include "des.h"
 
 char* decimal_to_binary(int n) {
@@ -259,8 +260,17 @@ void generate_round_keys(char* key, char** round_keys){
         }
         round_keys[round] = (char*)malloc(48 * sizeof(char));
         permute_key(merged_key, round_keys[round], 1);
-        printf("Round %d key: %s\n", round, binary_to_hex(round_keys[round], 48));
+        //printf("Round %d key: %s\n", round, binary_to_hex(round_keys[round], 48));
     }
+}
+
+char* generate_random_initialization_vector() {
+    srand(time(NULL));
+    char* iv = (char*)malloc(64 * sizeof(char));
+    for (int i = 0; i < 64; i++) {
+        iv[i] = rand() % 2 + '0';
+    }
+    return iv;
 }
 
 char* DES(char* plain_text, char** round_keys){
@@ -314,8 +324,37 @@ char* DES(char* plain_text, char** round_keys){
     return cipher_text;
 }
 
+void padding(char* binary_plain_text, int len) {
+    int padding_len = 64 - len % 64;
+    if (padding_len > 4) {
+        strcat(binary_plain_text, "1000");
+    }
+    for (int i = 4; i < padding_len; i++) {
+        strcat(binary_plain_text, "0");
+    }
+}
+
+char** divide_plain_text_to_blocks(char* plain_text, int len) {
+    int blocks = len / 64;
+    if (len % 64 != 0) {
+        blocks++;
+    }
+    char** divided = (char**)malloc(blocks * sizeof(char*));
+    for (int i = 0; i < blocks; i++) {
+        divided[i] = (char*)malloc(64 * sizeof(char));
+        strncpy(divided[i], plain_text + i * 64, 64);
+    }
+    return divided;
+}
+
+
 int main() {
+    struct timeval start, end;
+
     char* plain_text = "4e6f772069732074";
+    char* binary_plain_text = hex_to_binary(plain_text);
+    padding(binary_plain_text, strlen(binary_plain_text));
+    char** blocks = divide_plain_text_to_blocks(binary_plain_text, strlen(binary_plain_text));
 
     char key[] = "0123456789abcdef";
     char* binary_key = hex_to_binary(key);
