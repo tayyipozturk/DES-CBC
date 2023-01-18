@@ -5,6 +5,8 @@
 #ifndef DES_H
 #define DES_H
 
+#define BLOCK_SIZE 64
+
 enum permutation_type {
     permuted_choice_1 = 0,
     permuted_choice_2 = 1,
@@ -15,13 +17,13 @@ enum permutation_type {
 };
 
 char* decimal_to_binary(int n);
-int binary_to_decimal(char* binary);
+int binary_to_decimal(char* binary, int len);
 void reverse_string(char* str);
 char* string_to_hex(char *str);
 char* hex_to_binary(char *hex);
 char* binary_to_hex(char *binary, int bits);
 void shift_left(char* str, int len, int n);
-char* xor_strings(char* str1, char* str2);
+char* xor_strings(char* str1, char* str2, int len);
 
 void permute_key(const char *key, char *permutation_key, enum permutation_type type);
 void generate_round_keys(char* key, char** round_keys);

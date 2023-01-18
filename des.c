@@ -17,10 +17,9 @@ char* decimal_to_binary(int n) {
     return binary;
 }
 
-int binary_to_decimal(char* binary) {
+int binary_to_decimal(char* binary, int len) {
     int decimal = 0;
     int base = 1;
-    int len = strlen(binary);
     for (int i = len-1; i >= 0; i--)
     {
         if (binary[i] == '1')
@@ -54,7 +53,7 @@ char* string_to_hex(char *str) {
 
 char* hex_to_binary(char *hex_string) {
     int len = strlen(hex_string);
-    char* binary_string = (char*)malloc(len * 4 * sizeof(char));
+    char* binary_string = (char*)malloc(len * 4 * sizeof(char)+1);
     int i, j = 0;
     for (i = 0; i < len; i++) {
         switch (hex_string[i]) {
@@ -188,16 +187,14 @@ void shift_left(char* str, int len, int n) {
     }
 }
 
-char* xor_strings(char* str1, char* str2) {
-    int len = strlen(str1);
-    char* result = (char*)malloc(len + 1);
+char* xor_strings(char* str1, char* str2, int len) {
+    char* result = (char*)malloc(len);
     for (int i = 0; i < len; i++) {
         if (str1[i] == str2[i])
             result[i] = '0';
         else
             result[i] = '1';
     }
-    result[len] = '\0';
     return result;
 }
 
@@ -260,7 +257,6 @@ void generate_round_keys(char* key, char** round_keys){
         }
         round_keys[round] = (char*)malloc(48 * sizeof(char));
         permute_key(merged_key, round_keys[round], 1);
-        //printf("Round %d key: %s\n", round, binary_to_hex(round_keys[round], 48));
     }
 }
 
@@ -271,6 +267,29 @@ char* generate_random_initialization_vector() {
         iv[i] = rand() % 2 + '0';
     }
     return iv;
+}
+
+void padding(char* binary_plain_text, int len) {
+    int padding_len = (64 - len) % 64;
+    if (padding_len > 4) {
+        strcat(binary_plain_text, "1000");
+    }
+    for (int i = 4; i < padding_len; i++) {
+        strcat(binary_plain_text, "0");
+    }
+}
+
+char** divide_plain_text_to_blocks(char* plain_text, int len) {
+    int blocks = len / BLOCK_SIZE;
+    if (len % BLOCK_SIZE != 0) {
+        blocks++;
+    }
+    char** divided = (char**)malloc(blocks * sizeof(char*));
+    for (int i = 0; i < blocks; i++) {
+        divided[i] = (char*)malloc(BLOCK_SIZE * sizeof(char));
+        strncpy(divided[i], plain_text + i * BLOCK_SIZE, BLOCK_SIZE);
+    }
+    return divided;
 }
 
 char* DES(char* plain_text, char** round_keys){
@@ -285,21 +304,29 @@ char* DES(char* plain_text, char** round_keys){
     char expanded_right[16][48];
     for (int i = 0; i < 16; i++) {
         permute_key(right_half, expanded_right[i], 3);
-        char* xor_result = xor_strings(expanded_right[i], round_keys[i]);
+        char* xor_result = xor_strings(expanded_right[i], round_keys[i], 48);
+//        printf("Round %d: %s\n", i + 1, binary_to_hex(xor_result, 48));
 
         int j;
         char* sbox_output = (char*)malloc(32 * sizeof(char));
         for (j = 0; j < 8; j++) {
-            int row = binary_to_decimal(strndup(xor_result + (j * 6), 1) + binary_to_decimal(strndup(xor_result + (j * 6) + 5, 1)));
-            int col = binary_to_decimal(strndup(xor_result + (j * 6) + 1, 4));
-            char* sbox_output_binary = decimal_to_binary(S[j][row*8+col]);
+            char row[2] = { xor_result[j * 6], xor_result[j * 6 + 5] };
+            char column[4] = { xor_result[j * 6 + 1], xor_result[j * 6 + 2], xor_result[j * 6 + 3], xor_result[j * 6 + 4] };
+            int row_int = binary_to_decimal(row, 2);
+            int col_int = binary_to_decimal(column, 4);
+            int sbox_val = S[j][16 * row_int + col_int];
+//            printf("S:%d: j:%d\n",sbox_val ,j);
+            char* sbox_val_binary = decimal_to_binary(sbox_val);
             for (int k = 0; k < 4; k++) {
-                sbox_output[4 * j + k] = sbox_output_binary[k];
+                sbox_output[j * 4 + k] = sbox_val_binary[k];
             }
         }
+        printf("S box output: %s\n", binary_to_hex(sbox_output, 32));
         char* permutation = (char*)malloc(32 * sizeof(char));
         permute_key(sbox_output, permutation, 4);
-        xor_result = xor_strings(left_half, permutation);
+        printf("Round %d permutation: %s\n", i + 1, binary_to_hex(permutation, 32));
+        xor_result = xor_strings(left_half, permutation, 32);
+        printf("XOR %d: %s\n", i + 1, binary_to_hex(xor_result, 32));
 
         if (i != 15) {
             for (int k = 0; k < 32; k++) {
@@ -324,27 +351,31 @@ char* DES(char* plain_text, char** round_keys){
     return cipher_text;
 }
 
-void padding(char* binary_plain_text, int len) {
-    int padding_len = 64 - len % 64;
-    if (padding_len > 4) {
-        strcat(binary_plain_text, "1000");
+char** DES_CBC(char** blocks, unsigned long block_count, char* iv, char** round_keys, int mode) {
+    char** cipher_block = (char**)malloc(block_count * sizeof(char*));
+    char* cipher_text;
+    char* xor_result;
+    char* block;
+    char* previous_block = iv;
+    int i;
+    for (i = 0; i < block_count; i++) {
+        block = blocks[i];
+        if (mode == 0) {
+            xor_result = xor_strings(block, previous_block, BLOCK_SIZE);
+            cipher_text = DES(xor_result, round_keys);
+            cipher_block[i] = cipher_text;
+            strncpy(iv, cipher_text, 64);
+            previous_block = block;
+        }
+        else {
+            cipher_text = DES(block, round_keys);
+            xor_result = xor_strings(cipher_text, previous_block, BLOCK_SIZE);
+            cipher_block[i] = xor_result;
+            strncpy(iv, block, 64);
+            previous_block = block;
+        }
     }
-    for (int i = 4; i < padding_len; i++) {
-        strcat(binary_plain_text, "0");
-    }
-}
-
-char** divide_plain_text_to_blocks(char* plain_text, int len) {
-    int blocks = len / 64;
-    if (len % 64 != 0) {
-        blocks++;
-    }
-    char** divided = (char**)malloc(blocks * sizeof(char*));
-    for (int i = 0; i < blocks; i++) {
-        divided[i] = (char*)malloc(64 * sizeof(char));
-        strncpy(divided[i], plain_text + i * 64, 64);
-    }
-    return divided;
+    return cipher_block;
 }
 
 
@@ -355,12 +386,43 @@ int main() {
     char* binary_plain_text = hex_to_binary(plain_text);
     padding(binary_plain_text, strlen(binary_plain_text));
     char** blocks = divide_plain_text_to_blocks(binary_plain_text, strlen(binary_plain_text));
+    unsigned long block_count = strlen(binary_plain_text) / BLOCK_SIZE;
 
     char key[] = "0123456789abcdef";
     char* binary_key = hex_to_binary(key);
 
     char** round_keys = (char**)malloc(16 * sizeof(char*));
     generate_round_keys(binary_key, (char **) round_keys);
+
+    char* IV = generate_random_initialization_vector();
+    char* init_vector = "fe5567e8d7695508";
+    char* binary_init_vector = hex_to_binary(init_vector);
+    IV = binary_init_vector;
+
+    char* cipherText = DES(binary_plain_text, round_keys);
+    printf("Cipher text: %s\n", binary_to_hex(cipherText, 64));
+
+    gettimeofday(&start, NULL);
+
+    printf("Plain text: %s\n", plain_text);
+
+//    char** encrypted_block = DES_CBC(blocks, block_count, IV, round_keys, 0);
+//    int i;
+//    for(i=0; i<block_count; i++){
+//        char* block = malloc(64 * sizeof(char));
+//        strncpy(block, encrypted_block[i], 64);
+//        printf("Encrypted %d: %s\n",i , binary_to_hex(block, 64));
+//    }
+
+//    char** decrypted_block = DES_CBC(encrypted_block, block_count, IV, round_keys, 1);
+//    for(i=0; i<block_count; i++){
+//        char* block = malloc(64 * sizeof(char));
+//        strncpy(block, decrypted_block[i], 64);
+//        printf("Decrypted %d: %s\n", i, binary_to_hex(block, 64));
+//    }
+
+//    gettimeofday(&end, NULL);
+//    printf("Generating keys took %lu microseconds\n", (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec);
 
     return 0;
 }
